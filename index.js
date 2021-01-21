@@ -91,6 +91,6 @@ mongoose.connect(config.atlas_route, (err, res)=> {
   
   module.exports= {app}
 
-  //prueba 
+  
   
 
