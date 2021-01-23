@@ -2,76 +2,71 @@
 
 const express = require('express');
 const mongoose = require('mongoose');
-const fetch = require ('node-fetch');
-const config = require('./config.js');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const fetch = require('node-fetch');
 const RequestLog = require('./Models/RequestLog');
-
-
+const SerieSearch = require('./Models/SerieSearch');
+const config = require('./config');
 //   APP  ---Instancio las Dependencias 
+
 const app = express();
+app.use(bodyParser.json());
+app.use(cors());
 
-// MIDDLEWARES 
 
-app.use (express.json());
+
 
 // Verifico que Funciona la Búsqueda
-
 app.get('/', (req, res) => {
     res.status(200).send({ mensaje: "Funciona" })
 })
+app.set('trus proxy', true)
+//GET Serie
 
+app.get('/:serie', (req, res) => {
 
-let ip="";
-let search="";
-
-// ENDPOINT  --- ingresa la búsqueda
-
-app.get('/search/shows/:search',(req,res)=>{
-    search= req.params.search;
-
-    /* VERIFICACION --- ( Petición desde FrontEnd  ----> 
-        Esta en nuestra Base de Datos?  si: enviamos el objeto al Forntend)
-        no : realizar el request a TVMaze.
-     */
-
-    //Caso que NO tenemos en la BD => se realiza la petición a la APi Indicada 
-
-    fetch(`http://api.tvmaze.com/singlesearch/shows?q=${search}`)
-    .then(res => res.json())
-    .then(result => {
-        res.status(200).send({result});
-        console.log("Resultado de la busqueda: ");
-        console.log(result);
-    })
-    .catch( error => {
-        res.status(404).send({message:"Movie Not Found"});
-        console.log(`Movie Not Found: ${req.params.search}`);
-        console.log("Error: ", error);
-    })
+    SerieSearch.findOne({name : req.params.serie})
+        .then((SerieFinded)=>{
+            if(SerieFinded){
+                res.status(200).send(SerieFinded)
+                const newRequest = new RequestLog({
+                    date: new Date(),
+                    search: req.params.serie,
+                    ip: req.header('x-forwarded-for') || req.connection.remoteAddress,
+                    responseFrom: "CACHE"
+                })
+            }else{
+                fetch(`http://api.tvmaze.com/singlesearch/shows?q=${req.params.serie}`)
+                .then((res)=>{return res.json()})
+                .then((json)=>{
+                    if(!json){return res.status(404).send({"Not Founded":"404 Serie Not Founded"})}
+                    else{
+                        res.status(200).send(json)
+                        const newSerie = new SerieSearch({
+                            name:json.name,
+                            image:{medium:json.image.medium},
+                            summary:json.summary,
+                            officialSite:json.officialSite
+                           })
+                           newSerie.save().then((serieSaved)=>{
+                               return console.log(serieSaved)
+                            }).catch(err=>{ return console.log({"Error guardando serie":err})})
+                            const newRequest = new RequestLog({
+                                date: new Date(),
+                                search: req.params.serie,
+                                ip: req.header('x-forwarded-for') || req.connection.remoteAddress,
+                                responseFrom:"API"
+                            })
+                            newRequest.save().then((requestSaved) => {
+                                console.log(requestSaved)
+                            }).catch(err => { return console.log({ "Error": err }) })
+                    }
+                })
+            }
+        })
 })
 
-//IP --- ( dato que recibimos de la Web)
-
-app.post('/search/shows/ip',(req,res)=>{
-    ip= req.body.ip;
-    console.log("received web IP:", ip)
-    res.status(200).send({ip});
-
-    
-// CREO  OBJETO Y GUARDO EN CLUSTER logs (Atlass Compas MONGODB)
-
-    const newRequest = new RequestLog({
-        date: new Date(),
-        search:search,
-        ip:ip,
-        responseFrom:"CACHE|API"
-    })
-    
-    newRequest.save().then(function(newRequestCreated){
-        console.log("Saved DB logs :")
-        console.log(newRequestCreated);
-    })
-})
 
 
 // CONNECTION - SETTING - (conexión a Base de Datos y a Servidor)
@@ -88,8 +83,7 @@ mongoose.connect(config.atlas_route, (err, res)=> {
     })
   })
   
-  
-  module.exports= {app}
+
 
   
   
