@@ -7,7 +7,9 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 const RequestLog = require('./Models/RequestLog');
 const SerieSearch = require('./Models/SerieSearch');
-const config = require('./config');
+const config = require('./config'); // realizamos en un M. Externo la Configuración a nuestra DB y a su vez indicamos usuario y passport.
+
+
 //   APP  ---Instancio las Dependencias 
 
 const app = express();
@@ -22,7 +24,11 @@ app.get('/', (req, res) => {
     res.status(200).send({ mensaje: "Funciona" })
 })
 app.set('trus proxy', true)
-//GET Serie
+
+
+/* ENDPOINT ---- GET - EN ESTE CICLO REALIZO LA BÚSQUEDA (FindOne)-----IF--> si esta en la base de datos la serie que solicitan, enviarla  
+y a su vez cumpliendo el BONUS, colocando CACHE a uno de los parametros del objeto enviado.  ELSE ---> Sino se encuentra la busqueda en la DB
+realizar la Peticion a la API  (http://api.tvmaze.com/singlesearch/shows) , enviar al Usuario el objeto y a su vez guardarlo en la DB Series. */
 
 app.get('/:serie', (req, res) => {
 
@@ -83,7 +89,7 @@ mongoose.connect(config.atlas_route, (err, res)=> {
     })
   })
   
-// probando backend para commit -- probando123
+
 
   
   
